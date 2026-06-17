@@ -12,6 +12,18 @@
 # Figures
 figures/
 *.png
+!figures/sst_diagnostics.png
+!figures/chl_diagnostics.png
+!figures/ablation_sst.png
+!figures/ablation_chl.png
+!figures/kalman_sst_2019_04.png
+!figures/kalman_sst_2020_08.png
+!figures/seasonal_error_maps.png
+!figures/seasonal_stats_table.png
+!figures/uncertainty_summary.png
+!figures/uncertainty_chl_summary.png
+!figures/anomaly_combined_sst.png
+!figures/anomaly_extreme_sst.png
 *.pdf
 
 # Python
