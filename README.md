@@ -34,23 +34,91 @@ Analysis field with uncertainty bounds
 | Chl | RMSE (mg/m³) | 2.952 | 0.913 | −69% |
 | Chl | R² | −2.45 | 0.67 | +3.12 |
 
-**Ablation study** shows spring SST bias reduction of 1.72°C — the dominant error mode is thermocline onset timing, not random noise.
+---
 
-**Uncertainty quantification**: P10–P90 prediction intervals with 63% empirical coverage (SST) and 77% (Chl, log-space). OI posterior spread shows local uncertainty reduction near in-situ stations.
+## Results
 
-**Anomaly detection**: Two-layer system (residual z-score + Isolation Forest) identifies 2019-Mar/Apr as the most anomalous months — consistent with the 2019 European spring heatwave. Both layers independently flag the Norwegian Trench as physically anomalous in 2019–2020.
+### SST bias correction diagnostics
+
+![SST diagnostics](figures/sst_diagnostics.png)
+
+*Left to right: scatter obs vs ROMS raw, scatter obs vs XGB corrected, monthly bias before/after, spatial bias map, residual histogram, feature importance. RMSE 1.95→0.73°C, R² 0.71→0.96.*
+
+---
+
+### Chlorophyll bias correction diagnostics
+
+![Chl diagnostics](figures/chl_diagnostics.png)
+
+*Raw ROMS R²=−2.45 (worse than climatology). XGB corrected R²=0.67. Spring bloom overestimation (Apr–May +4 mg/m³) nearly eliminated.*
+
+---
+
+### Ablation study — seasonal vs physics contributions
+
+![Ablation SST](figures/ablation_sst.png)
+
+![Ablation Chl](figures/ablation_chl.png)
+
+*SST: climatology and physics features contribute roughly equally. Chl: physics features dominate with ΔR²=+0.57 beyond pure seasonality — bloom correction requires knowing the physical state, not just the date.*
+
+---
+
+### Seasonal error maps
+
+![Seasonal error maps](figures/seasonal_error_maps.png)
+
+*4×3 grid: ROMS error | XGB error | error reduction per season. Spring RMSE reduction 1.72°C — largest of any season, driven by thermocline onset timing.*
+
+![Seasonal stats table](figures/seasonal_stats_table.png)
+
+---
+
+### Three-layer correction maps
+
+![Kalman SST April 2019](figures/kalman_sst_2019_04.png)
+
+*Spring 2019 (most anomalous month, anom=0.80). ROMS raw → XGB corrected → OI analysis incorporating 29 in-situ stations.*
+
+![Kalman SST August 2020](figures/kalman_sst_2020_08.png)
+
+*Summer 2020. OI update shows localised warm corrections near coastal stations — physically consistent with shallow-water summer SST.*
+
+---
+
+### Uncertainty quantification
+
+![Uncertainty SST summary](figures/uncertainty_summary.png)
+
+*Top row: JJA P10/P50/P90 spatial maps + interval width. Bottom: seasonal coverage (63% annual vs 80% target — model overconfident), width-vs-error calibration (r=0.185), OI posterior spread σ_a.*
+
+![Uncertainty Chl summary](figures/uncertainty_chl_summary.png)
+
+*Spring Chl uncertainty dominated by bloom timing (model structural), winter by cloud cover (satellite retrieval). Two sources independently identifiable from the data.*
+
+---
+
+### Anomaly detection
+
+![Anomaly combined SST](figures/anomaly_combined_sst.png)
+
+*Two-layer anomaly detection timeline, seasonal spatial maps, and score distributions. 2019-Mar/Apr most anomalous (anom=0.80) — consistent with 2019 European spring heatwave. 72% of observations in normal regime.*
+
+![Anomaly extreme SST](figures/anomaly_extreme_sst.png)
+
+*Six most anomalous months ranked by combined detection fraction. All from 2019 — confirms 2020 within model's learned range despite COVID atmospheric changes.*
 
 ---
 
 ## Pipeline
 
 ```
-extract_colloc_roms.py    — ROMS × satellite collocation (KDTree / RegularGridInterpolator)
+extract_colloc_roms.py    — ROMS x satellite collocation (KDTree / RegularGridInterpolator)
 build_features_roms.py    — Feature engineering (depth, coast dist, doy cycle, lag residual)
-train_xgboost_roms.py     — XGBoost quantile + point models, SHAP/gain importance
+train_xgboost_roms.py     — XGBoost quantile + point models, gain importance
 ablation_baseline.py      — Climatology-only vs physics-only vs full model
 ingest_insitu_bgc.py      — CMEMS in-situ BGC profile ingestion (monthly resampling)
-kalman_update_roms.py     — Optimal Interpolation: x_a = x_b + K(y − Hx_b)
+kalman_update_roms.py     — Optimal Interpolation: x_a = x_b + K(y - Hx_b)
 visualise_results_roms.py — Scatter, monthly bias, spatial maps, feature importance
 seasonal_error_maps.py    — Seasonal error decomposition + OI increment maps
 uncertainty_sst.py        — Quantile regression P10/P50/P90 + OI spread (SST)
@@ -70,8 +138,6 @@ cp .env.example .env
 # Edit .env with your data paths
 source .env
 ```
-
-Required variables:
 
 | Variable | Description |
 |---|---|
@@ -100,7 +166,7 @@ python ce2coast_config.py
 ```bash
 bash run_pipeline.sh
 
-# Or resume from a specific step
+# Resume from a specific step
 bash run_pipeline.sh --from 7
 ```
 
@@ -110,55 +176,50 @@ bash run_pipeline.sh --from 7
 
 ### ROMS outputs
 CE2COAST monthly AVG files (`Hindcast_CE2COAST_AVG_{year}_2c_atm3.nc`), 2010–2020.
-Grid: 240×180 rho-points, 30 vertical levels, DT=300s.
+Grid: 240x180 rho-points, 30 vertical levels, DT=300s.
 Forcing: MAR v3.14-ecRad / MPI-ESM SSP3-7.0.
 
 ### Satellite observations
-- **SST**: CMEMS `OSTIA` L4 reprocessed daily (1/20° grid), resampled to monthly
+- **SST**: CMEMS OSTIA L4 reprocessed daily (1/20 degree), resampled to monthly
 - **Chl**: CMEMS `cmems_obs-oc_glo_bgc-plankton_my_l4-multi-4km_P1M`, monthly L4
 
 ### In-situ BGC
 - CMEMS `INSITU_GLO_PHYBGCWAV_DISCRETE_MYNRT_013_030`
-- 1182 platform files (Argo, CTD, Ferrybox)
-- North Sea domain: 48–62°N, −6–11°E, 2010–2020
-- Extracted: 2,867 monthly surface temperature obs, 223 monthly surface Chl obs
+- 1182 platform files (Argo, CTD, Ferrybox), North Sea 48-62N
+- 2,867 monthly surface temperature obs, 223 monthly surface Chl obs
 
 ---
 
 ## Methods
 
 ### Collocation
-ROMS (curvilinear grid, ~15km) and satellite (regular grid, 4km) are collocated via `scipy.spatial.cKDTree` nearest-neighbour (SST) and `scipy.interpolate.RegularGridInterpolator` bilinear (gridded satellite → ROMS rho-points).
+ROMS (curvilinear, ~15km) collocated against satellite (regular, 4km) via `RegularGridInterpolator` — obs grid interpolated onto ROMS rho-points. In-situ matched via `cKDTree` nearest-neighbour (threshold 0.2 degrees).
 
 ### XGBoost residual correction
-Target: `residual = obs − ROMS`. Features: ROMS physical state (SST/Chl, salinity, wind stress, SSH), bathymetry, coast distance, cyclical season encoding (sin/cos), lagged residual. Train: 2010–2018. Test: 2019–2020 (temporal holdout).
+Target: `residual = obs - ROMS`. Features: ROMS physical state, bathymetry, coast distance, cyclical season encoding, lagged residual. Train: 2010-2018. Test: 2019-2020 (strict temporal holdout).
 
 ### Optimal Interpolation
-Standard OI with Gaussian background error covariance:
-`x_a = x_b + K(y − Hx_b)`, `K = BHᵀ(HBHᵀ + R)⁻¹`
-Parameters: `L_b = 0.3°` (~30km), `σ_b² = 0.73²°C²` (from XGB RMSE), `σ_o² = 0.25°C²`.
+`x_a = x_b + K(y - Hx_b)`, `K = BHt(HBHt + R)^-1`
+Gaussian covariance, `L_b=0.3 degrees`, sigma_b from XGB RMSE, sigma_o=0.3 degC.
 
 ### Uncertainty quantification
-XGBoost quantile regression (`reg:quantileerror`) for P10/P50/P90 of residual correction. OI posterior spread `σ_a = √(B − KHB)`. Cloud cover proxy from NaN fraction in monthly satellite composites.
+XGBoost `reg:quantileerror` for P10/P50/P90. OI posterior spread from analysis error covariance. Chl cloud proxy from NaN fraction in monthly satellite composites.
 
 ### Anomaly detection
-- **Layer 1**: Residual z-score vs 2010–2018 climatology per grid point × month. Flag `|z| > 2`.
-- **Layer 2**: Isolation Forest on 12-feature physical state matrix. Contamination = 5%.
+Residual z-score vs 2010-2018 climatology (flag |z|>2) combined with Isolation Forest on physical feature matrix (contamination=5%).
 
 ---
 
 ## Scientific context
 
-The dominant ROMS error modes identified:
-
-| Season | ROMS error | Physical cause | XGB RMSE reduction |
+| Season | ROMS SST error | Physical cause | XGB RMSE reduction |
 |---|---|---|---|
-| MAM | −2.05°C cold | Spring thermocline onset too late | 1.72°C |
-| JJA | −1.63°C cold | Summer stratification underestimated | 1.33°C |
-| SON | +1.25°C warm | Mixed layer deepening too slow | 0.95°C |
-| DJF | +0.56°C warm | Winter convection overestimated | 0.71°C |
+| MAM | -2.05C cold | Spring thermocline onset too late | 1.72C |
+| JJA | -1.63C cold | Summer stratification underestimated | 1.33C |
+| SON | +1.25C warm | Mixed layer deepening too slow | 0.95C |
+| DJF | +0.56C warm | Winter convection overestimated | 0.71C |
 
-Chl: ROMS/FABM overestimates spring bloom by ~2.5× (log-residual mean −0.90). Physics features dominate correction (ΔR²=+0.57 beyond pure seasonality).
+Chl: ROMS/FABM overestimates spring bloom by ~2.5x. Physics features dominate correction (delta R2=+0.57 beyond pure seasonality).
 
 ---
 
@@ -166,19 +227,20 @@ Chl: ROMS/FABM overestimates spring bloom by ~2.5× (log-residual mean −0.90).
 
 ```
 .
-├── ce2coast_config.py          # Path configuration (env-var based)
-├── extract_colloc_roms.py      # Step 1: collocation
-├── build_features_roms.py      # Step 2: feature engineering
-├── train_xgboost_roms.py       # Step 3: XGBoost training
-├── ablation_baseline.py        # Step 4: ablation study
-├── ingest_insitu_bgc.py        # Step 5: in-situ ingestion
-├── kalman_update_roms.py       # Step 6: OI analysis
-├── visualise_results_roms.py   # Step 7: diagnostics
-├── seasonal_error_maps.py      # Step 8: seasonal maps
-├── uncertainty_sst.py          # Step 9: SST uncertainty
-├── uncertainty_chl.py          # Step 10: Chl uncertainty
-├── anomaly_detection.py        # Step 11: anomaly detection
-├── run_pipeline.sh             # Full pipeline runner
+├── ce2coast_config.py
+├── extract_colloc_roms.py
+├── build_features_roms.py
+├── train_xgboost_roms.py
+├── ablation_baseline.py
+├── ingest_insitu_bgc.py
+├── kalman_update_roms.py
+├── visualise_results_roms.py
+├── seasonal_error_maps.py
+├── uncertainty_sst.py
+├── uncertainty_chl.py
+├── anomaly_detection.py
+├── run_pipeline.sh
+├── figures/
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -188,4 +250,4 @@ Chl: ROMS/FABM overestimates spring bloom by ~2.5× (log-residual mean −0.90).
 
 ## License
 
-MIT License. Data products derived from Copernicus Marine Service — see [marine.copernicus.eu](https://marine.copernicus.eu) for data attribution requirements.
+MIT License. Data derived from Copernicus Marine Service — see [marine.copernicus.eu](https://marine.copernicus.eu) for attribution requirements.
